@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#171b20"><title>Ookayama Point Cloud Viewer</title>
+<link rel="icon" href="data:,">
+<style>
+*{box-sizing:border-box}body{margin:0;background:#20242a;color:#edf1f5;font:13px/1.5 system-ui,sans-serif;overflow:hidden}canvas{display:block;touch-action:none}aside{position:fixed;top:20px;left:20px;width:300px;padding:20px;background:#171b20ed;border:1px solid #ffffff20;border-radius:12px;box-shadow:0 10px 40px #0005}h1{font-size:18px;font-weight:600;margin:4px 0 6px;letter-spacing:-.5px}.eyebrow{font-size:10px;letter-spacing:2px;color:#8bcbb7}.sub{color:#9ca8b5;font-size:11px;margin-bottom:15px}.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:12px 0}.row input[type=range]{width:132px;accent-color:#8bcbb7}output{font-variant-numeric:tabular-nums;color:#b7e4d5}button,select{background:#2b333c;color:#e9eef3;border:1px solid #46525e;border-radius:5px;padding:7px 10px;font:inherit}button{cursor:pointer}button:hover{background:#3c4b57}button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid #8bcbb7}#stats{border-top:1px solid #ffffff20;margin-top:16px;padding-top:12px;font-size:12px;color:#b7e4d5;font-variant-numeric:tabular-nums}.help{color:#a4aeba;font-size:11px;margin:12px 0 0}.tag{position:fixed;bottom:18px;right:20px;color:#bdc7d0;font-size:11px;text-align:right;pointer-events:none}#error{color:#ffb8a8;max-height:75px;overflow:auto;font-size:12px}.touch{display:none;position:fixed;bottom:24px;left:24px;gap:8px}.touch button{width:48px;height:48px;touch-action:none;font-size:20px}#collapse{float:right;padding:2px 7px} @media(max-width:600px){aside{top:10px;left:10px;width:270px;padding:14px}.tag{bottom:8px;right:10px;font-size:10px}h1{font-size:16px}.touch.show{display:flex}aside.closed .details{display:none}aside.closed .sub{margin-bottom:0}}
+</style>
+<script type="importmap">{"imports":{"three":"./vendor/three.module.js","three/addons/":"./vendor/"}}</script>
+</head>
+<body>
+<aside><button id="collapse" aria-label="Collapse controls" aria-expanded="true">−</button><div class="eyebrow">TOKYO · 2026.11.08</div><h1>Ookayama Point Cloud Viewer</h1><div class="sub" id="dataset">Loading map hierarchy…</div>
+<div class="details"><div class="row"><label for="budget">Point budget <output id="budgetValue"></output></label><input id="budget" type="range" min="0.3" max="8" step="0.1"></div>
+<div class="row"><label for="scale">Splat size <output id="scaleValue">0.7×</output></label><input id="scale" type="range" min="0.2" max="2.5" step="0.1" value="0.7"></div>
+<div class="row"><label for="edl">Depth shading (EDL)</label><input id="edl" type="checkbox" checked></div>
+<div class="row"><select id="mode" aria-label="Navigation mode"><option value="orbit">Orbit</option><option value="fly">Fly · WASD</option></select><button id="reset">Reset view</button></div>
+<div id="stats" role="status">Preparing renderer…</div><div id="error" role="alert"></div>
+<p class="help">Orbit: drag to rotate · right-drag to pan · scroll to zoom. Double-click a point to set centre.<br>Fly: drag to look · WASD to move · Q/E down/up · Shift for speed.<br>Touch: one finger rotates · two fingers pan/zoom. Fly arrows move.</p></div></aside>
+<div class="touch" id="touch"><button data-key="KeyA" aria-label="Move left">←</button><button data-key="KeyW" aria-label="Move forward">↑</button><button data-key="KeyS" aria-label="Move backward">↓</button><button data-key="KeyD" aria-label="Move right">→</button></div>
+<div class="tag">LOCAL METRES · Z UP<br>FAST-LIO + camera colour fusion</div>
+<script type="module" src="./viewer.js"></script>
+</body></html>
