@@ -66362,7 +66362,7 @@ void main() {
 				}else {
 					let response = await fetch(urlOctree, {
 						headers: {
-							'content-type': 'multipart/byteranges',
+							// tsubame-colormap: GET に content-type を付けると GitHub Pages が 400 を返すので外す
 							'Range': `bytes=${first}-${last}`,
 						},
 					});
@@ -66566,7 +66566,7 @@ void main() {
 
 			let response = await fetch(hierarchyPath, {
 				headers: {
-					'content-type': 'multipart/byteranges',
+					// tsubame-colormap: GET に content-type を付けると GitHub Pages が 400 を返すので外す
 					'Range': `bytes=${first}-${last}`,
 				},
 			});
