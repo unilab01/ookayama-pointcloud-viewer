@@ -64,6 +64,19 @@ const DATA = new URLSearchParams(location.search).get('data')
   || 'https://unilab01.github.io/ookayama-pointcloud-data-20261108/v1_4cm/metadata.json';
 const mobile = matchMedia('(max-width: 800px)').matches;
 
+// 初期化に失敗したときは Potree の英語のエラーページではなく、原因をパネルに出す
+Potree.Viewer.prototype.onCrash = function (err) {
+  const probe = document.createElement('canvas');
+  const gl1 = !!(probe.getContext('webgl') || probe.getContext('experimental-webgl'));
+  const gl2 = !!document.createElement('canvas').getContext('webgl2');
+  document.getElementById('stats').innerHTML =
+    '<b>表示を始められませんでした。</b><br>' + String(err && err.message || err) +
+    `<br>WebGL1: ${gl1 ? '使える' : '使えない'} · WebGL2: ${gl2 ? '使える' : '使えない'}` +
+    '<br>Chrome のアプリで直接開くか、設定のハードウェアアクセラレーションを確認してください。';
+  const panel = document.getElementById('panel');
+  if (panel.classList.contains('closed')) document.getElementById('collapse').click();
+  console.error(err);
+};
 const viewer = new Potree.Viewer(document.getElementById('potree_render_area'), { useDefaultRenderLoop: true });
 viewer.setEDLEnabled(false);
 viewer.setFOV(60);

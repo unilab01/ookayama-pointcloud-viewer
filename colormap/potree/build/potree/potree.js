@@ -89407,7 +89407,14 @@ ENDSEC
 
 			let canvas = document.createElement("canvas");
 
-			let context = canvas.getContext('webgl', contextAttributes );
+			// tsubame-colormap: スマホなどで条件付きの作成に失敗したら、より緩い条件で作り直す
+			let context = canvas.getContext('webgl', contextAttributes )
+				|| canvas.getContext('webgl', { alpha: true, preserveDrawingBuffer: true })
+				|| canvas.getContext('webgl')
+				|| canvas.getContext('experimental-webgl');
+			if(!context){
+				throw new Error('WebGL context could not be created (getContext returned null)');
+			}
 
 			this.renderer = new WebGLRenderer({
 				alpha: true, 
