@@ -66559,7 +66559,7 @@ void main() {
 		async loadHierarchy(node){
 
 			let {hierarchyByteOffset, hierarchyByteSize} = node;
-			let hierarchyPath = `${this.url}/../hierarchy.bin`;
+			let hierarchyPath = `${this.url}/../${this.metadata.hierarchyFile || 'hierarchy.bin'}`; // tsubame-colormap: 配信用に名前を変えた場合
 			
 			let first = hierarchyByteOffset;
 			let last = first + hierarchyByteSize - 1n;
