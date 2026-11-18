@@ -26,6 +26,7 @@ button{background:#2b333c;color:#e9eef3;border:1px solid #46525e;border-radius:5
 button:hover{background:#3c4b57}
 button:focus-visible,input:focus-visible{outline:2px solid var(--accent)}
 #collapse{float:right;padding:1px 8px}
+.btns{display:flex;gap:6px}
 aside.closed .details{display:none}
 aside.closed .sub{margin-bottom:0}
 @media(max-width:600px){aside{top:10px;left:10px;padding:14px;width:280px}h1{font-size:16px}}
@@ -49,12 +50,16 @@ aside.closed .sub{margin-bottom:0}
     <input id="budget" type="range" min="0.5" max="8" step="0.5" style="width:100%;accent-color:var(--accent)">
     <div class="row"><label for="size">点の大きさ</label><input id="size" type="range" min="0.4" max="2" step="0.1" value="1"></div>
     <div id="stats">読み込み中…</div>
-    <p class="help">ドラッグ: 回転 · 右ドラッグ: 移動 · ホイール: 拡大 · ダブルクリック: その点を中心に<br>スマホ: 1 本指で回転 · 2 本指で移動と拡大</p>
+    <div class="row"><span>視点</span><span class="btns"><button id="topBtn" title="真上から見る">上から</button><button id="tiltBtn" title="斜めから見る">3D</button><button id="northBtn" title="最初の向きに戻す">⟲ 向き</button></span></div>
+    <div class="row"><label for="freeMode">自由回転モード（Potree 標準）</label><input id="freeMode" type="checkbox"></div>
+    <p class="help" id="helpMap">ドラッグ: 移動 · 右ドラッグ / Ctrl+ドラッグ: 回転と傾き · ホイール: 拡大縮小 · ダブルクリック: 寄る（Shift で引く）<br>スマホ: 1 本指で移動 · 2 本指でつまんで拡大縮小・ひねって回転・そろえて上下に動かして傾き<br>キー: 矢印 移動 · +/− 拡大縮小 · Q/E 回転 · W/S 傾き</p>
+    <p class="help" id="helpFree" hidden>ドラッグ: 回転 · 右ドラッグ: 移動 · ホイール: 拡大 · ダブルクリック: その点を中心に</p>
     <p class="help"><a href="../">昨日版のビューア（6000 万点）</a></p>
   </div>
 </aside>
 
 <script type="module">
+import { MapControls } from './map-controls.js';
 const DATA = new URLSearchParams(location.search).get('data')
   || 'https://unilab01.github.io/ookayama-pointcloud-data-20261108/v1_4cm/metadata.json';
 const mobile = matchMedia('(max-width: 800px)').matches;
@@ -82,8 +87,28 @@ Potree.loadPointCloud(DATA, 'map', e => {
   m.size = 1; m.minSize = 1.5;
   document.getElementById('size').oninput = ev => { m.size = +ev.target.value; };
   viewer.scene.addPointCloud(pc);
-  viewer.scene.view.setView([200, -150, 250], [200, 150, 0]);
   window.pointcloud = pc;
+
+  // Google マップ風の操作（既定）。最初は真上から地図全体を見る
+  const mc = new MapControls(viewer, { groundZ: 0 });
+  const home = new mc.V3(205, 140, 0);
+  mc.setMapView(home, { yaw: 0, tilt: 0, dist: mobile ? 700 : 480 });
+  const free = document.getElementById('freeMode');
+  free.onchange = () => {
+    mc.enabled = !free.checked;
+    document.getElementById('helpMap').hidden = free.checked;
+    document.getElementById('helpFree').hidden = !free.checked;
+    if (free.checked) viewer.scene.view.radius = viewer.scene.view.position.distanceTo(mc.centerHit());
+  };
+  const keep = (opts) => {
+    const c = mc.centerHit(), v = viewer.scene.view;
+    const dist = v.position.distanceTo(c);
+    mc.setMapView(c, { yaw: opts.yaw ?? v.yaw, tilt: opts.tilt ?? mc.tilt(), dist });
+  };
+  document.getElementById('topBtn').onclick = () => keep({ tilt: 0 });
+  document.getElementById('tiltBtn').onclick = () => keep({ tilt: 55 * Math.PI / 180 });
+  document.getElementById('northBtn').onclick = () => keep({ yaw: 0 });
+  window.mapControls = mc;
   setInterval(() => {
     const vis = viewer.scene.pointclouds.reduce((s, p) => s + p.numVisiblePoints, 0);
     document.getElementById('stats').textContent =
