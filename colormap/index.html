@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#171b20">
+<title>Ookayama Colour Map</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="potree/build/potree/potree.css">
+<style>
+:root{--bg:#20242a;--panel:#171b20ed;--fg:#edf1f5;--muted:#9ca8b5;--accent:#8bcbb7;--line:#ffffff20}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--fg);font:13px/1.5 system-ui,sans-serif;overflow:hidden}
+#potree_render_area{position:absolute;inset:0}
+aside{position:fixed;top:20px;left:20px;width:310px;max-width:calc(100% - 32px);padding:18px 20px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 40px #0005;z-index:10}
+.eyebrow{font-size:10px;letter-spacing:2px;color:var(--accent)}
+h1{font-size:18px;font-weight:600;margin:4px 0 6px;letter-spacing:-.5px}
+.sub{color:var(--muted);font-size:11px;margin-bottom:12px}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:10px 0}
+.row input[type=range]{width:140px;accent-color:var(--accent)}
+output,#stats{font-variant-numeric:tabular-nums;color:#b7e4d5}
+#stats{border-top:1px solid var(--line);margin-top:12px;padding-top:10px;font-size:12px}
+.help{color:#a4aeba;font-size:11px;margin:10px 0 0}
+a{color:var(--accent)}
+button{background:#2b333c;color:#e9eef3;border:1px solid #46525e;border-radius:5px;padding:4px 9px;font:inherit;cursor:pointer}
+button:hover{background:#3c4b57}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent)}
+#collapse{float:right;padding:1px 8px}
+aside.closed .details{display:none}
+aside.closed .sub{margin-bottom:0}
+@media(max-width:600px){aside{top:10px;left:10px;padding:14px;width:280px}h1{font-size:16px}}
+</style>
+</head>
+<body>
+<script src="potree/libs/jquery/jquery-3.1.1.min.js"></script>
+<script src="potree/libs/other/BinaryHeap.js"></script>
+<script src="potree/libs/tween/tween.min.js"></script>
+<script src="potree/libs/proj4/proj4.js"></script>
+<script src="potree/build/potree/potree.js"></script>
+
+<div id="potree_render_area"></div>
+<aside id="panel">
+  <button id="collapse" aria-label="操作パネルをたたむ" aria-expanded="true">−</button>
+  <div class="eyebrow">TOKYO · 2026.11.08 · REBUILT 11.18</div>
+  <h1>Ookayama Colour Map</h1>
+  <div class="sub">現行 SLAM 設定で作り直した地図（3 台の LiDAR の全点）に、カメラ画像から面の色を付けたもの。色の付いた点を 4 cm ごとに平均した 1.27 億点を、見ている場所だけ細かく読み込みます。</div>
+  <div class="details">
+    <div class="row"><label for="budget">描く点の上限</label><output id="budgetOut"></output></div>
+    <input id="budget" type="range" min="0.5" max="8" step="0.5" style="width:100%;accent-color:var(--accent)">
+    <div class="row"><label for="size">点の大きさ</label><input id="size" type="range" min="0.4" max="2" step="0.1" value="1"></div>
+    <div id="stats">読み込み中…</div>
+    <p class="help">ドラッグ: 回転 · 右ドラッグ: 移動 · ホイール: 拡大 · ダブルクリック: その点を中心に<br>スマホ: 1 本指で回転 · 2 本指で移動と拡大</p>
+    <p class="help"><a href="../">昨日版のビューア（6000 万点）</a></p>
+  </div>
+</aside>
+
+<script type="module">
+const DATA = new URLSearchParams(location.search).get('data')
+  || 'https://unilab01.github.io/ookayama-pointcloud-data-20261108/v1_4cm/metadata.json';
+const mobile = matchMedia('(max-width: 800px)').matches;
+
+const viewer = new Potree.Viewer(document.getElementById('potree_render_area'), { useDefaultRenderLoop: true });
+viewer.setEDLEnabled(false);
+viewer.setFOV(60);
+viewer.setBackground('black');
+viewer.setMinNodeSize(30);
+
+const budget = document.getElementById('budget'), budgetOut = document.getElementById('budgetOut');
+const setBudget = m => { viewer.setPointBudget(m * 1e6); budgetOut.textContent = `${m} M`; };
+budget.value = mobile ? 1.5 : 4; setBudget(+budget.value);
+budget.oninput = () => setBudget(+budget.value);
+
+const panel = document.getElementById('panel'), collapse = document.getElementById('collapse');
+collapse.onclick = () => { const c = panel.classList.toggle('closed'); collapse.textContent = c ? '+' : '−'; collapse.setAttribute('aria-expanded', String(!c)); };
+if (mobile) collapse.click();
+
+Potree.loadPointCloud(DATA, 'map', e => {
+  const pc = e.pointcloud, m = pc.material;
+  m.activeAttributeName = 'rgba';
+  m.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+  m.shape = Potree.PointShape.CIRCLE;
+  m.size = 1; m.minSize = 1.5;
+  document.getElementById('size').oninput = ev => { m.size = +ev.target.value; };
+  viewer.scene.addPointCloud(pc);
+  viewer.scene.view.setView([200, -150, 250], [200, 150, 0]);
+  window.pointcloud = pc;
+  setInterval(() => {
+    const vis = viewer.scene.pointclouds.reduce((s, p) => s + p.numVisiblePoints, 0);
+    document.getElementById('stats').textContent =
+      `表示中 ${(vis / 1e6).toFixed(2)} M 点 · 読み込み中のブロック ${Potree.numNodesLoading}`;
+  }, 500);
+}, err => { document.getElementById('stats').textContent = '読み込みに失敗しました: ' + err; });
+window.viewer = viewer;
+</script>
+</body>
+</html>

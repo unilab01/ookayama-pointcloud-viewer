@@ -9,3 +9,7 @@
 
 A browser viewer for a coloured LiDAR map of the Ookayama area (robot run, 2026-11-08): 60 M points, progressive octree LOD, orbit / fly / touch controls.
 Built with [three.js](https://threejs.org/) (MIT, see vendor/LICENSE).
+
+## 新しいページ: [colormap/](https://unilab01.github.io/ookayama-pointcloud-viewer/colormap/)
+
+2026-11-18 に現行 SLAM 設定で作り直した地図に色を付けたもの（色の付いた点を 4 cm ごとに平均した 1.27 億点、Potree 1.8.2 で表示）。点群データは [ookayama-pointcloud-data-20261108](https://github.com/unilab01/ookayama-pointcloud-data-20261108) の GitHub Pages から読み込みます（このサイトの 1 GB 制限のため分けています）。Potree は BSD-2-Clause（colormap/potree/LICENSE）。
