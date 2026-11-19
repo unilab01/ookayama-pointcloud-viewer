@@ -42,9 +42,9 @@ aside.closed .sub{margin-bottom:0}
 <div id="potree_render_area"></div>
 <aside id="panel">
   <button id="collapse" aria-label="操作パネルをたたむ" aria-expanded="true">−</button>
-  <div class="eyebrow">TOKYO · 2026.11.08 · REBUILT 11.18</div>
+  <div class="eyebrow">TOKYO · 2026.11.08 · REBUILT 11.19</div>
   <h1>Ookayama Colour Map</h1>
-  <div class="sub">現行 SLAM 設定で作り直した地図（3 台の LiDAR の全点）に、カメラ画像から面の色を付けたもの。色の付いた点を 4 cm ごとに平均した 1.27 億点を、見ている場所だけ細かく読み込みます。</div>
+  <div class="sub">現行 SLAM 設定で作り直した地図（3 台の LiDAR）を、ループ閉じ込みで補正して再訪のずれ（二重の壁）をなくし、5 cm ごとにまとめてカメラ画像から面の色を付けたもの。色の付いた 8237 万点を、見ている場所だけ細かく読み込みます。</div>
   <div class="details">
     <div class="row"><label for="budget">描く点の上限</label><output id="budgetOut"></output></div>
     <input id="budget" type="range" min="0.5" max="8" step="0.5" style="width:100%;accent-color:var(--accent)">
@@ -61,7 +61,7 @@ aside.closed .sub{margin-bottom:0}
 <script type="module">
 import { MapControls } from './map-controls.js';
 const DATA = new URLSearchParams(location.search).get('data')
-  || 'https://unilab01.github.io/ookayama-pointcloud-data-20261108/v1_4cm/metadata.json';
+  || 'https://unilab01.github.io/ookayama-pointcloud-data-20261108/v2_5cm/metadata.json';
 const mobile = matchMedia('(max-width: 800px)').matches;
 
 // 初期化に失敗したときは Potree の英語のエラーページではなく、原因をパネルに出す
