@@ -24,7 +24,8 @@ output,#stats{font-variant-numeric:tabular-nums;color:#b7e4d5}
 a{color:var(--accent)}
 button{background:#2b333c;color:#e9eef3;border:1px solid #46525e;border-radius:5px;padding:4px 9px;font:inherit;cursor:pointer}
 button:hover{background:#3c4b57}
-button:focus-visible,input:focus-visible{outline:2px solid var(--accent)}
+select{background:#2b333c;color:#e9eef3;border:1px solid #46525e;border-radius:5px;padding:3px 6px;font:inherit}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--accent)}
 #collapse{float:right;padding:1px 8px}
 .btns{display:flex;gap:6px}
 aside.closed .details{display:none}
@@ -46,6 +47,7 @@ aside.closed .sub{margin-bottom:0}
   <h1>Ookayama Colour Map</h1>
   <div class="sub">現行 SLAM 設定で作り直した地図（3 台の LiDAR）を、ループ閉じ込みで補正して再訪のずれ（二重の壁）をなくし、5 cm ごとにまとめてカメラ画像から面の色を付けたもの。色の付いた 8237 万点を、見ている場所だけ細かく読み込みます。</div>
   <div class="details">
+    <div class="row"><label for="quality">画質</label><select id="quality"><option value="auto">自動</option><option value="low">軽量（古いスマホ向け）</option><option value="mid">標準</option><option value="high">高画質</option></select></div>
     <div class="row"><label for="budget">描く点の上限</label><output id="budgetOut"></output></div>
     <input id="budget" type="range" min="0.5" max="8" step="0.5" style="width:100%;accent-color:var(--accent)">
     <div class="row"><label for="size">点の大きさ</label><input id="size" type="range" min="0.4" max="2" step="0.1" value="1"></div>
@@ -62,7 +64,36 @@ aside.closed .sub{margin-bottom:0}
 import { MapControls } from './map-controls.js';
 const DATA = new URLSearchParams(location.search).get('data')
   || 'https://unilab01.github.io/ookayama-pointcloud-data-20261108/v2_5cm/metadata.json';
+const params = new URLSearchParams(location.search);
 const mobile = matchMedia('(max-width: 800px)').matches;
+
+// 端末の性能から画質の段階を決める（?mode=low|mid|high で固定できる）
+function detectTier() {
+  const forced = params.get('mode');
+  if (['low', 'mid', 'high'].includes(forced)) return { tier: forced, why: '指定' };
+  const mem = navigator.deviceMemory || 0, cores = navigator.hardwareConcurrency || 0;
+  let gpu = '';
+  try {
+    const gl = document.createElement('canvas').getContext('webgl');
+    const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+    gpu = gl ? String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER)) : '';
+  } catch (e) {}
+  const weakGpu = /Mali-(4|T[0-9])|Mali-G(31|51|52|57|68)|Adreno[^0-9]*([1-5][0-9]{2}|6[0-1][0-9])\b|PowerVR|SGX|Vivante|VideoCore|Intel.*HD Graphics [2-5]/i.test(gpu);
+  const touch = matchMedia('(pointer: coarse)').matches;
+  if ((mem && mem <= 3) || (cores && cores <= 4) || weakGpu) return { tier: 'low', why: [mem && `メモリ ${mem} GB`, cores && `CPU ${cores} コア`, weakGpu && gpu].filter(Boolean).join(' · ') };
+  if (touch || mobile) return { tier: 'mid', why: 'スマホ' };
+  return { tier: 'high', why: 'PC' };
+}
+const { tier, why } = detectTier();
+// budget: 最初の点の上限 [百万点], cap: 自動調整で上げる上限, nodes: 同時に読み込むブロック数
+const TIER = {
+  low:  { budget: 0.5, cap: 1.0, minNode: 45, nodes: 2, ratio: 0.75, fixed: true },
+  mid:  { budget: 1.5, cap: 2.5, minNode: 40, nodes: 3, ratio: 1,    fixed: false },
+  high: { budget: 4,   cap: 8,   minNode: 30, nodes: 4, ratio: 1,    fixed: false },
+}[tier];
+const qsel = document.getElementById('quality');
+qsel.value = params.get('mode') || 'auto';
+qsel.onchange = () => { params.set('mode', qsel.value); if (qsel.value === 'auto') params.delete('mode'); location.search = params.toString(); };
 
 // 初期化に失敗したときは Potree の英語のエラーページではなく、原因をパネルに出す
 Potree.Viewer.prototype.onCrash = function (err) {
@@ -81,12 +112,65 @@ const viewer = new Potree.Viewer(document.getElementById('potree_render_area'), 
 viewer.setEDLEnabled(false);
 viewer.setFOV(60);
 viewer.setBackground('black');
-viewer.setMinNodeSize(30);
+viewer.setMinNodeSize(TIER.minNode);
+Potree.maxNodesLoading = TIER.nodes;
+viewer.renderer?.setPixelRatio(TIER.ratio);
 
+// 点の上限。スライダーは利用者の上限で、重いときはその範囲で自動的に下げる
 const budget = document.getElementById('budget'), budgetOut = document.getElementById('budgetOut');
-const setBudget = m => { viewer.setPointBudget(m * 1e6); budgetOut.textContent = `${m} M`; };
-budget.value = mobile ? 1.5 : 4; setBudget(+budget.value);
-budget.oninput = () => setBudget(+budget.value);
+let userCap = TIER.budget, current = TIER.budget;
+const applyBudget = () => {
+  viewer.setPointBudget(current * 1e6);
+  budgetOut.textContent = current < userCap - 1e-6 ? `${current.toFixed(2)} / ${userCap} M（自動で軽く）` : `${userCap} M`;
+};
+budget.max = String(Math.max(2, TIER.cap * 2));
+budget.min = '0.25'; budget.step = '0.25';
+budget.value = TIER.budget; applyBudget();
+budget.oninput = () => { userCap = +budget.value; current = userCap; applyBudget(); wake(); };
+
+// 描画は必要なときだけ: 視点が動いた、操作中、読み込み中、表示が変わっている間は毎フレーム描く。
+// 落ち着いてからも 6 秒間は 4 fps で詳細の読み込みを確かめ、そのあとは止める（電池と発熱を抑える）
+let lastKey = '', lastSig = '', quiet = 0, forceFrames = 0, lastChange = performance.now(), lastPoll = 0;
+const wake = (n = 30) => { forceFrames = Math.max(forceFrames, n); lastChange = performance.now(); };
+for (const ev of ['pointerdown', 'pointermove', 'wheel', 'touchstart', 'touchmove', 'keydown', 'resize'])
+  window.addEventListener(ev, () => wake(), { passive: true });
+let frames = 0, frameTime = 0, lastT = 0;
+viewer.renderer?.setAnimationLoop(t => {
+  const v = viewer.scene.view, a = viewer.renderArea;
+  const key = [v.position.x, v.position.y, v.position.z, v.yaw, v.pitch, a.clientWidth, a.clientHeight].map(x => x.toFixed(3)).join();
+  const moving = key !== lastKey, now = performance.now();
+  if (moving) lastChange = now;
+  const busy = moving || forceFrames > 0 || Potree.numNodesLoading > 0 || quiet < 10;
+  const poll = now - lastChange < 6000 && now - lastPoll > 250;
+  if (!busy && !poll) { lastT = 0; return; }
+  if (!busy) { lastPoll = now; lastT = 0; }
+  if (moving) quiet = 0; else quiet++;
+  if (forceFrames > 0) forceFrames--;
+  lastKey = key;
+  viewer.loop(t);
+  const pcs = viewer.scene.pointclouds;
+  const sig = pcs.map(p => p.numVisiblePoints + ':' + p.visibleNodes.length).join();
+  if (sig !== lastSig) { lastSig = sig; quiet = 0; lastChange = now; }
+  if (!busy) return;
+  // 続けて描いているときのフレーム時間で、点の上限を調整する
+  if (lastT) { frameTime += t - lastT; frames++; }
+  lastT = t;
+  if (frames >= 60) {
+    const fps = 1000 * frames / frameTime;
+    const next = fps < 20 ? Math.max(0.25, current * 0.7) : (fps > 45 ? Math.min(userCap, current * 1.15) : current);
+    if (Math.abs(next - current) > 1e-3) { current = next; applyBudget(); }
+    frames = 0; frameTime = 0;
+  }
+});
+
+// WebGL が端末側で落とされたとき（メモリ不足など）は、案内を出して再読み込みできるようにする
+viewer.renderer?.domElement.addEventListener('webglcontextlost', e => {
+  e.preventDefault();
+  document.getElementById('stats').innerHTML = '<b>端末のメモリが足りず表示が止まりました。</b><br><button onclick="location.reload()">再読み込み</button>' +
+    (tier !== 'low' ? ' <button onclick="location.search=\'mode=low\'">軽量で開き直す</button>' : '');
+  const panel = document.getElementById('panel');
+  if (panel.classList.contains('closed')) document.getElementById('collapse').click();
+}, false);
 
 const panel = document.getElementById('panel'), collapse = document.getElementById('collapse');
 collapse.onclick = () => { const c = panel.classList.toggle('closed'); collapse.textContent = c ? '+' : '−'; collapse.setAttribute('aria-expanded', String(!c)); };
@@ -95,10 +179,14 @@ if (mobile) collapse.click();
 Potree.loadPointCloud(DATA, 'map', e => {
   const pc = e.pointcloud, m = pc.material;
   m.activeAttributeName = 'rgba';
-  m.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-  m.shape = Potree.PointShape.CIRCLE;
-  m.size = 1; m.minSize = 1.5;
-  document.getElementById('size').oninput = ev => { m.size = +ev.target.value; };
+  // 軽量: 四角い点で、大きさは距離だけで決める（丸めと見え方の計算を省き、GPU の負担を小さくする）。それ以外: 距離に応じた大きさの丸い点
+  if (TIER.fixed) {
+    m.pointSizeType = Potree.PointSizeType.ATTENUATED; m.shape = Potree.PointShape.SQUARE; m.size = 1.5; m.minSize = 2.5;
+    const sz = document.getElementById('size'); sz.min = '0.5'; sz.max = '4'; sz.step = '0.25'; sz.value = '1.5';
+  } else {
+    m.pointSizeType = Potree.PointSizeType.ADAPTIVE; m.shape = Potree.PointShape.CIRCLE; m.size = 1; m.minSize = 1.5;
+  }
+  document.getElementById('size').oninput = ev => { m.size = +ev.target.value; wake(); };
   viewer.scene.addPointCloud(pc);
   window.pointcloud = pc;
 
@@ -108,12 +196,14 @@ Potree.loadPointCloud(DATA, 'map', e => {
   mc.setMapView(home, { yaw: 0, tilt: 0, dist: mobile ? 700 : 480 });
   const free = document.getElementById('freeMode');
   free.onchange = () => {
+    wake();
     mc.enabled = !free.checked;
     document.getElementById('helpMap').hidden = free.checked;
     document.getElementById('helpFree').hidden = !free.checked;
     if (free.checked) viewer.scene.view.radius = viewer.scene.view.position.distanceTo(mc.centerHit());
   };
   const keep = (opts) => {
+    wake();
     const c = mc.centerHit(), v = viewer.scene.view;
     const dist = v.position.distanceTo(c);
     mc.setMapView(c, { yaw: opts.yaw ?? v.yaw, tilt: opts.tilt ?? mc.tilt(), dist });
@@ -124,8 +214,9 @@ Potree.loadPointCloud(DATA, 'map', e => {
   window.mapControls = mc;
   setInterval(() => {
     const vis = viewer.scene.pointclouds.reduce((s, p) => s + p.numVisiblePoints, 0);
+    if (document.getElementById('stats').querySelector('button')) return;
     document.getElementById('stats').textContent =
-      `表示中 ${(vis / 1e6).toFixed(2)} M 点 · 読み込み中のブロック ${Potree.numNodesLoading}`;
+      `表示中 ${(vis / 1e6).toFixed(2)} M 点 · 読み込み中のブロック ${Potree.numNodesLoading} · 画質: ${{low: '軽量', mid: '標準', high: '高画質'}[tier]}（${why}）`;
   }, 500);
 }, err => { document.getElementById('stats').textContent = '読み込みに失敗しました: ' + err; });
 window.viewer = viewer;

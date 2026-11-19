@@ -89391,7 +89391,7 @@ ENDSEC
 				stencil: false,
 				antialias: false,
 				//premultipliedAlpha: _premultipliedAlpha,
-				preserveDrawingBuffer: true,
+				preserveDrawingBuffer: false, // tsubame-colormap: スマホの GPU で毎フレームのコピーを避ける
 				powerPreference: "high-performance",
 			};
 
@@ -89409,7 +89409,7 @@ ENDSEC
 
 			// tsubame-colormap: スマホなどで条件付きの作成に失敗したら、より緩い条件で作り直す
 			let context = canvas.getContext('webgl', contextAttributes )
-				|| canvas.getContext('webgl', { alpha: true, preserveDrawingBuffer: true })
+				|| canvas.getContext('webgl', { alpha: true })
 				|| canvas.getContext('webgl')
 				|| canvas.getContext('experimental-webgl');
 			if(!context){
